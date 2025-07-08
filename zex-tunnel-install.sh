@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 #─────────────────────────────────────────────────────────────────
 #  ZEX Tunnel – WaterWall custom installer
-#  Author : izex        •  Version : 2.250706
-#  License: MIT         •  Requires: sudo (root privileges)
+#  Author  : izex
+#  Version : 2.250706
+#  License : MIT
+#  Requires: sudo (root privileges)
 #─────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-VERSION="2.250706"
-BASE_DIR="/root/ZEX-Tunnel"          # final installation path
-PANEL_PATH="/usr/local/bin/zt"       # launcher for the TUI panel
+VERSION="2.250706"                  # ← single source-of-truth
+
+BASE_DIR="/root/ZEX-Tunnel"         # installation path
+PANEL_PATH="/usr/local/bin/zt"      # launcher for the TUI panel
 INSTALL_COPY="/root/zex-tunnel-install.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "===== Installing ZEX Tunnel ${VERSION} ====="
 
-#──────────────────── Pre-checks & cleanup ────────────────────
+#──────────────────── Pre-checks & cleanup ─────────────────────
 [[ $EUID -eq 0 ]] || { echo "❌  Please run as root (use sudo)."; exit 1; }
 
 systemctl disable --now ztw ztwl >/dev/null 2>&1 || true
@@ -28,21 +31,22 @@ case "$UBUNTU_VERSION" in 20.*|21.*|22.*|23.*|24.*) ;; *)
   echo "❌  Unsupported Ubuntu version: ${UBUNTU_VERSION}"; exit 1 ;;
 esac
 
-#──────────────────── Dependencies ────────────────────────────
+#──────────────────── Dependencies ─────────────────────────────
 apt update -y
 apt install -y python3 python3-pip curl
 pip3 install -U flask flask-socketio eventlet
 
-#──────────────────── Copy WaterWall payload ──────────────────
+#──────────────────── Copy WaterWall payload ───────────────────
 mkdir -p "$BASE_DIR"
 echo "→ Copying WaterWall files into ${BASE_DIR}"
 for item in "$SCRIPT_DIR"/*; do
   name="$(basename "$item")"
+  # Skip the installer, README, and git dir
   [[ "$name" == "$(basename "$0")" || "$name" == "README.md" || "$name" == ".git" ]] && continue
   cp -r "$item" "$BASE_DIR/"
 done
 
-# Remove old placeholder configs that come with the payload
+# Remove placeholder configs if present
 rm -f "$BASE_DIR"/config_*.json "$BASE_DIR/core.json"
 
 #──────────────────── Interactive configuration ───────────────
@@ -70,17 +74,17 @@ else
   echo "❌  Invalid selection"; exit 1
 fi
 
-# Apply user values to the chosen config
+# Apply user values
 sed -i -e "s#__IP_IRAN__#${IRAN_IP}#g" \
        -e "s#__IP_KHAREJ__#${FOREIGN_IP}#g" \
        -e "s#__PROTOCOL__#${PROTOCOL}#g" \
        -e "s#__PORT__#${PORT}#g"           "$CONF_FILE"
 
-# Flat file for the TUI panel to read
+# Flat file for TUI panel
 printf '%s\n%s\n%s\n%s\n' "$IRAN_IP" "$FOREIGN_IP" "$PROTOCOL" "$PORT" > "$BASE_DIR/config.zex"
 chmod -R +x "$BASE_DIR"
 
-#──────────────────── systemd units ───────────────────────────
+#──────────────────── systemd units ────────────────────────────
 cat > /etc/systemd/system/ztw.service <<EOF
 [Unit]
 Description=ZEX WaterWall
@@ -113,12 +117,13 @@ EOF
 
 systemctl daemon-reload
 systemctl enable ztw ztwl
+systemctl restart ztw ztwl   # ← service is running after (re)install
 
 #──────────────────── TUI panel launcher (`zt`) ───────────────
 cat > "$PANEL_PATH" <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
-VERSION="2.250706"
+VERSION="__SCRIPT_VERSION__"        # placeholder (replaced by installer)
 BASE_DIR="/root/ZEX-Tunnel"
 CONFIG_FILE="$BASE_DIR/config.zex"
 WEB_CONFIG="$BASE_DIR/web.zex"
@@ -184,7 +189,7 @@ while true; do
   done
   printf "\nSelect an option: "; read -r opt
   case "$opt" in
-    1) sudo bash /root/zex-tunnel-install.sh; exit ;;
+    1) sudo bash /root/zex-tunnel-install.sh; exit ;;   # will restart service
     2)
        read -rp "New Web Port: " nport
        read -rp "New Web Password: " npass
@@ -217,7 +222,11 @@ while true; do
 done
 EOS
 
+# replace version placeholder inside the panel
+sed -i "s/__SCRIPT_VERSION__/${VERSION}/" "$PANEL_PATH"
 chmod +x "$PANEL_PATH"
+
+# keep a copy of the installer for easy re-run
 cp "$(realpath "$0")" "$INSTALL_COPY"
 
 echo -e "\n✅  Installation complete. Run \e[33mzt\e[0m to open the panel."
