@@ -46,6 +46,7 @@ Or clone first:
 ```bash
 git clone https://github.com/izex/zex-tunnel.git
 cd zex-tunnel
+chmod +x *
 sudo bash zex-tunnel-install.sh
 ```
 
@@ -141,6 +142,7 @@ curl -sL https://raw.githubusercontent.com/izex/zex-tunnel/main/zex-tunnel-insta
 ```bash
 git clone https://github.com/izex/zex-tunnel.git
 cd zex-tunnel
+chmod +x *
 sudo bash zex-tunnel-install.sh
 ```
 
