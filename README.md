@@ -1,11 +1,4 @@
 # ZEX Tunnel Installer (WaterWall Custom)
-
- &#x20;
-
-> **Multi‑language** – English first, فارسی در ادامه.
-
----
-
 ## About 📖
 
 This repository hosts \*\*a streamlined Bash installer for a personalised build of \*\*[**WaterWall**](https://github.com/radkesvat/WaterWall). On top of making installation almost one‑click for Ubuntu 20.04‑24.04, the menu also lets you optionally install the popular [3x‑ui](https://github.com/MHSanaei/3x-ui) X‑Ray (V2Ray) panel.
