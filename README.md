@@ -1,111 +1,187 @@
-# ZEX Tunnel Installer (WaterWall Custom)
-## About 📖
+<!-- README.md for izex/zex-tunnel -->
 
-This repository hosts \*\*a streamlined Bash installer for a personalised build of \*\*[**WaterWall**](https://github.com/radkesvat/WaterWall). On top of making installation almost one‑click for Ubuntu 20.04‑24.04, the menu also lets you optionally install the popular [3x‑ui](https://github.com/MHSanaei/3x-ui) X‑Ray (V2Ray) panel.
+<h1 align="center">
+  ZEX Tunnel<br/>
+  <sub><sup>WaterWall custom build &amp; easy installer</sup></sub>
+</h1>
 
-* **Upstream code‑base:** WaterWall by **radkesvat** – traffic tunnelling & obfuscation.
-* **Add‑on:** One‑command installation of **3x‑ui** panel by **mhsanaei**.
-* **Your twist:** Interactive installer, systemd units, bilingual TUI panel, web API.
+<p align="center">
+  <a href="https://github.com/izex/zex-tunnel/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/izex/zex-tunnel?style=flat-square"></a>
+  <a href="https://github.com/izex/zex-tunnel/releases/latest"><img alt="Latest Release" src="https://img.shields.io/github/v/release/izex/zex-tunnel?style=flat-square"></a>
+  <a href="https://github.com/izex/zex-tunnel/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/izex/zex-tunnel?style=flat-square"></a>
+</p>
 
----
-
-## Features ✨
-
-| Category                 | Highlights                                                                                                        |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| **Installer**            | – Works on Ubuntu 20.04 → 24.04– Interactive config (Iran / Outside Iran)– Auto‑generated `ztw` & `ztwl` services |
-| **TUI Panel (**\`\`**)** | – Neat ANSI UI for start / stop / restart– Edit web API port & password– Optional **3x‑ui** installer             |
-| **Web API**              | – Flask + Socket.IO– Runs as `ztwl` service                                                                       |
-| **Clean uninstall**      | Removes everything in one click                                                                                   |
+> **Multi-language** – English first, سپس فارسی.
 
 ---
 
-## Quick Install 🚀
+## ✨ Overview
+
+`zex-tunnel` is a **one-command installer** for a customised build of
+[**WaterWall**](https://github.com/radkesvat/WaterWall) – an efficient traffic‐tunnelling &
+obfuscation tool. The script ships *all binaries and configs in-repo* so no extra
+ZIP download is needed. It also provides a colourful **TUI panel** (`zt`) and an
+option to install the popular [**3x-ui**](https://github.com/MHSanaei/3x-ui) panel.
+
+### Why bother?
+
+* ⏱ **Quick setup** – Ubuntu 20.04 → 24.04 in under a minute.
+* 🖥 **TUI control panel** with start/stop/restart & live status.
+* ⚙️ **Interactive config** (Iran / Outside Iran, protocol, port, …).
+* 🌐 Optional **web API** (Flask + Socket.IO).
+* 🔄 **Reconfigure** any time – just rerun the installer from the panel.
+* 🧹 **One-click uninstall** cleans every file & systemd unit.
+
+---
+
+## 🚀 Quick start
 
 ```bash
-curl -sL https://raw.githubusercontent.com/USER/REPO/main/zex-tunnel-install.sh | sudo bash
+# run from anywhere – needs sudo
+curl -sL https://raw.githubusercontent.com/izex/zex-tunnel/main/zex-tunnel-install.sh | sudo bash
 ```
 
-> Replace \`\` with this repository path. The script will fetch `zex_waterwall.zip` from the latest GitHub Release.
-
----
-
-## Usage 🛠
-
-After installation:
+Or clone first:
 
 ```bash
-zt       # open the interactive panel
-sudo systemctl status ztw    # WaterWall daemon
-sudo systemctl status ztwl   # Web API
+git clone https://github.com/izex/zex-tunnel.git
+cd zex-tunnel
+sudo bash zex-tunnel-install.sh
 ```
 
-To uninstall completely, choose **10 Uninstall Everything** from the panel.
+### Requirements
+
+* Ubuntu 20.04, 22.04, 23.10 or 24.04
+* `sudo` privileges (root)
+* \~150 MB free disk space & outbound HTTP access (for Python deps)
 
 ---
 
-## Release Assets 📦
+## 🖥 Using the panel
 
-Binary builds are kept under the Release tab as versioned assets. The installer always downloads the ZIP that matches the tag (`v2.250706`, `v2.250901`, …).
+```bash
+zt                 # open colourful menu
+sudo systemctl status ztw   # WaterWall daemon
+sudo systemctl status ztwl  # Web API (optional)
+```
+
+| Menu option                          | What it does                                                                            |
+| ------------------------------------ | --------------------------------------------------------------------------------------- |
+| **1 Reconfigure Tunnel**             | Runs installer again → services auto‑restart                                            |
+| **2 Edit Web Config**                | Change API port & password                                                              |
+| **3/4/5** Start / Stop / Restart     | Control the WaterWall systemd service (`ztw`)                                           |
+| **7/8/9** Start / Stop / Restart API | Control the Flask web‑API service (`ztwl`)                                              |
+| **11 Install 3x-ui Panel**           | Pulls & installs [https://github.com/MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui) |
+| **10 Uninstall Everything**          | Removes binaries, configs, services & the panel launcher                                |
 
 ---
 
-## Credits 🙏
+## 🛠 Project structure
 
-* **WaterWall** – © radkesvat – [https://github.com/radkesvat/WaterWall](https://github.com/radkesvat/WaterWall)
-* **3x‑ui** – © mhsanaei – [https://github.com/MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui)
-* Bash, Python 3, Flask, eventlet, Socket.IO.
+```
+.
+├── zex-tunnel-install.sh   # main installer (run with sudo)
+├── Waterwall               # upstream binary (executable)
+├── web.py                  # Flask API entry‑point
+├── web.zex                 # default web‑API config (port / password)
+├── Iran/                   # configs for servers *inside* Iran
+├── Kharej/                 # configs for servers *outside* Iran
+├── LICENSE                 # MIT
+└── README.md               # this file
+```
+
+> **Note:** WaterWall payload is committed directly – no Git LFS or extra download required.
 
 ---
 
-## License 📜
+## 🙏 Credits
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
+| Project   | Author        | URL                                                                              |
+| --------- | ------------- | -------------------------------------------------------------------------------- |
+| WaterWall | **radkesvat** | [https://github.com/radkesvat/WaterWall](https://github.com/radkesvat/WaterWall) |
+| 3x-ui     | **mhsanaei**  | [https://github.com/MHSanaei/3x-ui](https://github.com/MHSanaei/3x-ui)           |
 
 ---
 
-# فارسی 🇮🇷
+## 📜 License
+
+Released under the MIT License – see [`LICENSE`](LICENSE).
+
+---
+
+# 🇮🇷 راهنمای فارسی
 
 ## معرفی
 
-این مخزن شامل **اسکریپت نصب خودکار «زِکس تونل»** است که بر پایهٔ پروژهٔ [WaterWall](https://github.com/radkesvat/WaterWall) نوشته شده و مراحل نصب را روی اوبونتو ۲۰٫۰۴ تا ۲۴٫۰۴ به چند کلیک کاهش می‌دهد. همچنین در منوی پنل می‌توانید **پنل X‑Ray (3x‑ui)** را نیز تنها با یک گزینه نصب کنید.
+`zex-tunnel` یک **اسکریپت نصب سریع** برای نسخهٔ شخصی‌سازی‌شدهٔ
+[WaterWall](https://github.com/radkesvat/WaterWall) است. تمام فایل‌های موردنیاز
+(باینری، کانفیگ، …) داخل همین مخزن است؛ بنابراین نیازی به دانلود ZIP نیست.
+در پایان نصب، یک **پنل خط فرمان رنگی** به نام `zt` در اختیار دارید و در صورت
+تمایل می‌توانید پنل **3x-ui** را هم تنها با یک گزینه نصب کنید.
 
-### تفاوت با نسخهٔ اصلی
+### ویژگی‌ها
 
-* گفت‌وگوی تعاملی (انتخاب «داخل ایران / خارج ایران»)
-* ایجاد خودکار سرویس‌های systemd (`ztw`, `ztwl`)
-* پنل خط فرمان (TUI) دو زبانه با قابلیت مدیریت سرویس‌ها
-* قابلیت نصب **3x‑ui** فقط با یک گزینه
+* نصب سریع روی اوبونتو ۲۰٫۰۴ تا ۲۴٫۰۴
+* پیکربندی تعاملی (داخل / خارج ایران، پروتکل، پورت)
+* پنل TUI برای مدیریت سرویس‌ها
+* وب API اختیاری (Flask)
+* امکان Reconfigure در هر زمان با اجرای مجدد اسکریپت از داخل پنل
+* حذف کامل فقط با یک گزینه
 
-## امکانات کلیدی
+---
 
-| دسته                   | توضیح                                                              |
-| ---------------------- | ------------------------------------------------------------------ |
-| **نصب سریع**           | پشتیبانی از Ubuntu 20.04 تا 24.04؛ دانلود ZIP از Release همین مخزن |
-| **پنل TUI (**\`\`**)** | شروع / توقف / ریستارت؛ ویرایش پورت و رمز وب؛ نصب 3x‑ui             |
-| **API وب**             | نوشته شده با Flask و Socket.IO؛ اجرا به صورت سرویس `ztwl`          |
-| **حذف کامل**           | یک گزینه برای پاک‌کردن همه‌چیز                                     |
-
-## نصب سریع
-
-```bash
-curl -sL https://raw.githubusercontent.com/USER/REPO/main/zex-tunnel-install.sh | sudo bash
-```
-
-## پس از نصب
+## نصب فوری
 
 ```bash
-zt                     # ورود به پنل
-sudo systemctl status ztw   # وضعیت WaterWall
-sudo systemctl status ztwl  # وضعیت API وب
+curl -sL https://raw.githubusercontent.com/izex/zex-tunnel/main/zex-tunnel-install.sh | sudo bash
 ```
 
-برای حذف، در منوی پنل گزینهٔ **۱۰ Uninstall Everything** را بزنید.
+یا:
+
+```bash
+git clone https://github.com/izex/zex-tunnel.git
+cd zex-tunnel
+sudo bash zex-tunnel-install.sh
+```
+
+> نیازمندی‌ها: اوبونتو ۲۰٫۰۴ یا جدیدتر و دسترسی `sudo`.
+
+---
+
+## استفاده از پنل `zt`
+
+پس از نصب:
+
+```bash
+zt    # باز کردن منو
+```
+
+گزینهٔ **۱ Reconfigure Tunnel** اسکریپت نصب را دوباره اجرا می‌کند و سرویس‌ها
+را با تنظیمات جدید ری‌استارت می‌کند.
+
+---
+
+## ساختار مخزن
+
+```
+.
+├── zex-tunnel-install.sh   # اسکریپت اصلی نصب
+├── Waterwall               # باینری WaterWall
+├── web.py                  # ورودی API وب (Flask)
+├── web.zex                 # تنظیمات پیش‌فرض وب
+├── Iran/                   # کانفیگ برای سرور داخل ایران
+├── Kharej/                 # کانفیگ برای سرور خارج
+└── README.md               # این فایل
+```
+
+---
 
 ## تشکر و قدردانی
 
-* **WaterWall** توسط radkesvat
-* **3x‑ui** توسط mhsanaei
+* **WaterWall** به‌دست *radkesvat*
+* **3x-ui** به‌دست *mhsanaei*
+
+---
 
 ## مجوز
 
