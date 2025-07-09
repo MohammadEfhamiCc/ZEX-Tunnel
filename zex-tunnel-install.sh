@@ -56,8 +56,8 @@ echo "   ZEX Tunnel Config"
 echo "========================="
 printf 'Select server location:\n  [1] Iran\n  [2] Outside Iran\n> '
 read -r LOCATION_CHOICE
-printf 'IRAN IP / Domain  : ' ; read -r IRAN_IP
-printf 'Foreign IP / Host : ' ; read -r FOREIGN_IP
+printf 'IRAN IP : ' ; read -r IRAN_IP
+printf 'Kharej IP : ' ; read -r FOREIGN_IP
 echo 'Protocol numbers list: https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers'
 printf 'Protocol Number (default 18): ' ; read -r PROTOCOL ; [[ -z "$PROTOCOL" ]] && PROTOCOL=18
 printf 'Port Number (default 443): '   ; read -r PORT     ; [[ -z "$PORT"     ]] && PORT=443
