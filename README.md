@@ -38,14 +38,14 @@ option to install the popular [**3x-ui**](https://github.com/MHSanaei/3x-ui) pan
 
 ```bash
 # run from anywhere – needs sudo
-curl -sL https://raw.githubusercontent.com/izex/zex-tunnel/main/zex-tunnel-install.sh | sudo bash
+curl -sL https://raw.githubusercontent.com/izex/ZEX-Tunnel/main/zex-tunnel-install.sh | sudo bash
 ```
 
 Or clone first:
 
 ```bash
-git clone https://github.com/izex/zex-tunnel.git
-cd zex-tunnel
+git clone https://github.com/izex/ZEX-Tunnel.git
+cd ZEX-Tunnel
 chmod +x *
 sudo bash zex-tunnel-install.sh
 ```
