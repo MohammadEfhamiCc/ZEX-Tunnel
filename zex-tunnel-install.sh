@@ -1,119 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-# ───────────── General Info ─────────────
-VERSION="V2.250706"
-BASE_DIR="$(dirname "$(realpath "$0")")"
-PANEL_PATH="/usr/local/bin/zt"
-INSTALL_COPY="/root/zex-tunnel-install.sh"
-
-echo "===== Installing ZEX Tunnel $VERSION ====="
-
-# ───────────── Pre-checks & Cleanup ─────────────
-[[ $EUID -eq 0 ]] || { echo "Run with sudo/root."; exit 1; }
-
-systemctl disable --now ztw ztwl >/dev/null 2>&1 || true
-rm -f /etc/systemd/system/ztw.service /etc/systemd/system/ztwl.service
-rm -f "$PANEL_PATH"
-systemctl daemon-reload
-
-UBUNTU_VERSION=$(grep '^VERSION_ID=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
-case "$UBUNTU_VERSION" in 20.*|21.*|22.*|23.*|24.*) ;; *) echo "Unsupported Ubuntu $UBUNTU_VERSION"; exit 1;; esac
-
-# ───────────── Dependencies ─────────────
-apt update -y
-apt install -y python3 python3-pip curl
-pip3 install -U flask flask-socketio eventlet
-
-# ───────────── Interactive Config ─────────────
-reconfigure_tunnel() {
-  echo -e "\n🧹 Cleaning old configuration files..."
-  rm -f "$BASE_DIR/core.json" "$BASE_DIR/config_ir.json" "$BASE_DIR/config_kharej.json"
-
-  clear
-  echo "========================"
-  echo "   ZEX Tunnel Config"
-  echo "========================"
-  printf 'Select server location:\n  [1] Iran\n  [2] Outside Iran\n> '
-  read -r LOCATION_CHOICE
-  printf 'IRAN IP/Domain: '
-  read -r IRAN_IP
-  printf 'Kharej IP/Domain: '
-  read -r KHAREJ_IP
-  echo 'Protocol Numbers Info: https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers'
-  printf 'Protocol Number (Default 18): '
-  read -r PROTOCOL;  [[ -z "$PROTOCOL" ]] && PROTOCOL=18
-  printf 'Port Number (Default 443): '
-  read -r PORT;      [[ -z "$PORT" ]] && PORT=443
-
-  if [[ "$LOCATION_CHOICE" == "1" ]]; then
-    cp "$BASE_DIR/Iran/config_ir.json" "$BASE_DIR/"
-    cp "$BASE_DIR/Iran/core.json" "$BASE_DIR/"
-    CONF_FILE="$BASE_DIR/config_ir.json"
-  elif [[ "$LOCATION_CHOICE" == "2" ]]; then
-    cp "$BASE_DIR/Kharej/config_kharej.json" "$BASE_DIR/"
-    cp "$BASE_DIR/Kharej/core.json" "$BASE_DIR/"
-    CONF_FILE="$BASE_DIR/config_kharej.json"
-  else
-    echo "Invalid selection."; exit 1
-  fi
-
-  sed -i -e "s#__IP_IRAN__#${IRAN_IP}#g" \
-         -e "s#__IP_KHAREJ__#${KHAREJ_IP}#g" \
-         -e "s#__PROTOCOL__#${PROTOCOL}#g" \
-         -e "s#__PORT__#${PORT}#g" "$CONF_FILE"
-
-  printf '%s\n%s\n%s\n%s\n' "$IRAN_IP" "$KHAREJ_IP" "$PROTOCOL" "$PORT" > "$BASE_DIR/config.zex"
-}
-
-# ───────────── Initial Config Call ─────────────
-reconfigure_tunnel
-
-# ───────────── systemd Units ─────────────
-cat >/etc/systemd/system/ztw.service <<EOF
-[Unit]
-Description=ZEX Waterwall
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=$BASE_DIR
-ExecStart=$BASE_DIR/Waterwall
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat >/etc/systemd/system/ztwl.service <<EOF
-[Unit]
-Description=ZEX Waterwall Web
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=$BASE_DIR
-ExecStart=/usr/bin/python3 $BASE_DIR/web.py
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable ztw ztwl
-systemctl restart ztw ztwl
-
-# ───────────── Panel Script ─────────────
-cat >"$PANEL_PATH" <<'EOS'
-#!/usr/bin/env bash
-set -euo pipefail
 VERSION="V2.250706"
 BASE_DIR="/root/ZEX-Tunnel"
 CONFIG_FILE="$BASE_DIR/config.zex"
 WEB_CONFIG="$BASE_DIR/web.zex"
 CLR(){ printf "\e[%sm%b\e[0m" "$1" "$2"; }
 banner(){ CLR "36;1" "╔══════════════════════════════════════════════════╗\n"; CLR "33;1" "          🚀  ZEX Tunnel Panel $VERSION 🚀\n"; CLR "36;1" "╚══════════════════════════════════════════════════╝\n"; }
+
 while true; do
   clear; banner
   LOCATION="Unknown"
@@ -169,7 +62,10 @@ while true; do
   done
   printf "\nSelect an option: "; read -r opt
   case "$opt" in
-    1) sudo bash "$INSTALL_COPY"; systemctl restart ztw ztwl; exit ;;
+    1)
+       sudo bash /root/zex-tunnel-install.sh
+       sudo systemctl restart ztw ztwl
+       exit ;;
     2)
        read -rp "New Web Port: " nport
        read -rp "New Web Password: " npass
@@ -178,7 +74,10 @@ while true; do
          arr[0]="$nport"; arr[2]="$npass"
          printf '%s\n%s\n%s\n%s\n' "${arr[0]}" "${arr[1]}" "${arr[2]}" "${arr[3]}" > "$WEB_CONFIG"
          CLR 32 "Web config updated.\n"
-       else CLR 31 "web.zex not found.\n"; fi
+         sudo systemctl restart ztwl
+       else
+         CLR 31 "web.zex not found.\n"
+       fi
        read -rp "Press Enter to continue" ;;
     3) sudo systemctl start ztw;   read -rp "Press Enter" ;;
     4) sudo systemctl stop ztw;    read -rp "Press Enter" ;;
@@ -194,15 +93,12 @@ while true; do
        sudo rm -rf "$BASE_DIR/config.zex" "$BASE_DIR/core.json" "$BASE_DIR/config_ir.json" "$BASE_DIR/config_kharej.json"
        sudo rm -f /usr/local/bin/zt "$WEB_CONFIG"
        CLR 32 "Uninstalled.\n"; exit ;;
-    11) CLR 36 "Installing Sanaei Xray Panel...\n"; bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh); exit ;;
+    11)
+       CLR 36 "Installing Sanaei Xray Panel...\n"
+       bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+       exit ;;
     12) continue ;;
     0) exit ;;
-    *)  CLR 31 "Invalid option\n"; read -rp "Press Enter" ;;
+    *) CLR 31 "Invalid option\n"; read -rp "Press Enter" ;;
   esac
 done
-EOS
-
-chmod +x "$PANEL_PATH"
-cp "$(realpath "$0")" "$INSTALL_COPY"
-
-echo -e "\n✅ Installation complete. Run \e[33mzt\e[0m to open the panel."
