@@ -104,8 +104,6 @@ systemctl enable ztw ztwl
 reconfigure_tunnel
 systemctl restart ztw ztwl
 
-echo "⚙️ Generating control panel..."
-
 cat >"$PANEL_PATH" <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
