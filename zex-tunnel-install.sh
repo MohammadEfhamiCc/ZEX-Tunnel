@@ -53,14 +53,12 @@ reconfigure_tunnel() {
   echo "✅ Tunnel reconfigured successfully."
 }
 
-# ───────────── If Only Reconfigure Mode ─────────────
 if [[ "${1:-}" == "--reconfigure" ]]; then
   reconfigure_tunnel
   systemctl restart ztw ztwl
   exit 0
 fi
 
-# ───────────── Full Installation ─────────────
 [[ $EUID -eq 0 ]] || { echo "❌ Run as root."; exit 1; }
 
 echo "🔧 Installing dependencies..."
@@ -68,7 +66,8 @@ apt update -y
 apt install -y python3 python3-pip curl
 pip3 install -U flask flask-socketio eventlet
 
-# ───────────── systemd services ─────────────
+echo "🛠 Setting up systemd services..."
+
 cat >/etc/systemd/system/ztw.service <<EOF
 [Unit]
 Description=ZEX Waterwall
@@ -102,11 +101,11 @@ EOF
 systemctl daemon-reload
 systemctl enable ztw ztwl
 
-# ───────────── Run Initial Config ─────────────
 reconfigure_tunnel
 systemctl restart ztw ztwl
 
-# ───────────── Create Panel Script ─────────────
+echo "⚙️ Generating control panel..."
+
 cat >"$PANEL_PATH" <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
