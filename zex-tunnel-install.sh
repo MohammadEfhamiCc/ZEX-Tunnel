@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# ───────────── General Info ─────────────
 VERSION="V2.250706"
 BASE_DIR="/root/ZEX-Tunnel"
 PANEL_PATH="/usr/local/bin/zt"
 
+# ───────────── Reconfigure Function ─────────────
 reconfigure_tunnel() {
   echo -e "\n🧹 Removing old config files..."
   rm -f "$BASE_DIR/core.json" "$BASE_DIR/config_ir.json" "$BASE_DIR/config_kharej.json"
@@ -52,25 +54,35 @@ reconfigure_tunnel() {
   echo "✅ Tunnel reconfigured successfully."
 }
 
-# ─────── فقط ری‌کانفیگ ───────
+# ───────────── Handle Reconfigure Mode ─────────────
 if [[ "${1:-}" == "--reconfigure" ]]; then
   reconfigure_tunnel
   systemctl restart ztw ztwl
   exit 0
 fi
 
-[[ $EUID -eq 0 ]] || { echo "❌ Run as root."; exit 1; }
+# ───────────── Check Permissions ─────────────
+[[ $EUID -eq 0 ]] || { echo "❌ Run this script as root."; exit 1; }
 
-echo "🔧 Installing dependencies..."
+# ───────────── Ubuntu Version Check ─────────────
+UBUNTU_VERSION=$(grep '^VERSION_ID=' /etc/os-release | cut -d= -f2 | tr -d '"')
+case "$UBUNTU_VERSION" in
+  20.*|21.*|22.*|23.*|24.*) ;;
+  *) echo "❌ Unsupported Ubuntu version: $UBUNTU_VERSION"; exit 1 ;;
+esac
+
+# ───────────── Install Dependencies ─────────────
+echo "📦 Installing Python and dependencies..."
 apt update -y
-apt install -y python3 python3-pip curl
+apt install -y python3 python3-pip unzip curl wget lsof
 pip3 install -U flask flask-socketio eventlet
 
-echo "🛠 Setting up systemd services..."
+# ───────────── Create systemd services ─────────────
+echo "⚙️  Creating systemd services..."
 
 cat >/etc/systemd/system/ztw.service <<EOF
 [Unit]
-Description=ZEX Waterwall
+Description=ZEX Waterwall Core
 After=network.target
 
 [Service]
@@ -85,7 +97,7 @@ EOF
 
 cat >/etc/systemd/system/ztwl.service <<EOF
 [Unit]
-Description=ZEX Waterwall Web
+Description=ZEX Waterwall Web Panel
 After=network.target
 
 [Service]
@@ -101,6 +113,7 @@ EOF
 systemctl daemon-reload
 systemctl enable ztw ztwl
 
+# ───────────── Initial Config ─────────────
 reconfigure_tunnel
 systemctl restart ztw ztwl
 
