@@ -7,49 +7,6 @@ BASE_DIR="/root/ZEX-Tunnel"
 PANEL_PATH="/usr/local/bin/zt"
 INSTALL_SCRIPT="$BASE_DIR/zex-tunnel-install.sh"
 
-# ───────────── Reconfigure Mode ─────────────
-if [[ "${1:-}" == "--reconfigure" ]]; then
-  echo -e "\n🧹 Removing old config files..."
-  rm -f "$BASE_DIR/config_ir.json" "$BASE_DIR/config_kharej.json" "$BASE_DIR/core.json"
-
-  echo "========================"
-  echo "   ZEX Tunnel Config"
-  echo "========================"
-  printf 'Select server location:\n  [1] Iran\n  [2] Outside Iran\n> '
-  read -r LOCATION_CHOICE
-  printf 'IRAN IP/Domain: '
-  read -r IRAN_IP
-  printf 'Kharej IP/Domain: '
-  read -r KHAREJ_IP
-  echo 'Protocol Numbers Info: https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers'
-  printf 'Protocol Number (Default 18): '
-  read -r PROTOCOL;  [[ -z "$PROTOCOL" ]] && PROTOCOL=18
-  printf 'Port Number (Default 443): '
-  read -r PORT;      [[ -z "$PORT" ]] && PORT=443
-
-  if [[ "$LOCATION_CHOICE" == "1" ]]; then
-    cp "$BASE_DIR/Iran/config_ir.json" "$BASE_DIR/"
-    cp "$BASE_DIR/Iran/core.json" "$BASE_DIR/"
-    CONF_FILE="$BASE_DIR/config_ir.json"
-  elif [[ "$LOCATION_CHOICE" == "2" ]]; then
-    cp "$BASE_DIR/Kharej/config_kharej.json" "$BASE_DIR/"
-    cp "$BASE_DIR/Kharej/core.json" "$BASE_DIR/"
-    CONF_FILE="$BASE_DIR/config_kharej.json"
-  else
-    echo "Invalid selection."; exit 1
-  fi
-
-  sed -i -e "s#__IP_IRAN__#${IRAN_IP}#g" \
-         -e "s#__IP_KHAREJ__#${KHAREJ_IP}#g" \
-         -e "s#__PROTOCOL__#${PROTOCOL}#g" \
-         -e "s#__PORT__#${PORT}#g" "$CONF_FILE"
-
-  printf '%s\n%s\n%s\n%s\n' "$IRAN_IP" "$KHAREJ_IP" "$PROTOCOL" "$PORT" > "$BASE_DIR/config.zex"
-  systemctl restart ztw ztwl
-  echo -e "\n📄 Tunnel reconfigured successfully."
-  exit 0
-fi
-
 # ───────────── Pre-checks ─────────────
 [[ $EUID -eq 0 ]] || { echo "Run as root user."; exit 1; }
 
@@ -57,10 +14,10 @@ UBUNTU_VERSION=$(grep '^VERSION_ID=' /etc/os-release | cut -d'=' -f2 | tr -d '"'
 case "$UBUNTU_VERSION" in 20.*|21.*|22.*|23.*|24.*) ;; *) echo "Unsupported Ubuntu $UBUNTU_VERSION"; exit 1;; esac
 
 # ───────────── Dependencies ─────────────
-echo -e "\n🛁 Installing dependencies..."
-apt update -y >/dev/null
-apt install -y python3 python3-pip unzip wget curl >/dev/null
-pip3 install -U flask flask-socketio eventlet >/dev/null 2>&1
+echo -e "\n🚱 Installing dependencies..."
+apt update -y
+apt install -y python3 python3-pip unzip wget curl
+pip3 install -U flask flask-socketio eventlet
 
 # ───────────── Service Setup ─────────────
 echo -e "\n🏋️ Creating systemd services..."
@@ -96,6 +53,47 @@ EOF
 
 systemctl daemon-reload
 systemctl enable ztw ztwl
+
+# ───────────── Configuration ─────────────
+echo -e "\n🤔 Starting initial configuration..."
+rm -f "$BASE_DIR/config_ir.json" "$BASE_DIR/config_kharej.json" "$BASE_DIR/core.json"
+
+clear
+echo "========================"
+echo "   ZEX Tunnel Config"
+echo "========================"
+printf 'Select server location:\n  [1] Iran\n  [2] Outside Iran\n> '
+read -r LOCATION_CHOICE
+printf 'IRAN IP/Domain: '
+read -r IRAN_IP
+printf 'Kharej IP/Domain: '
+read -r KHAREJ_IP
+echo 'Protocol Numbers Info: https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers'
+printf 'Protocol Number (Default 18): '
+read -r PROTOCOL;  [[ -z "$PROTOCOL" ]] && PROTOCOL=18
+printf 'Port Number (Default 443): '
+read -r PORT;      [[ -z "$PORT" ]] && PORT=443
+
+if [[ "$LOCATION_CHOICE" == "1" ]]; then
+  cp "$BASE_DIR/Iran/config_ir.json" "$BASE_DIR/"
+  cp "$BASE_DIR/Iran/core.json" "$BASE_DIR/"
+  CONF_FILE="$BASE_DIR/config_ir.json"
+elif [[ "$LOCATION_CHOICE" == "2" ]]; then
+  cp "$BASE_DIR/Kharej/config_kharej.json" "$BASE_DIR/"
+  cp "$BASE_DIR/Kharej/core.json" "$BASE_DIR/"
+  CONF_FILE="$BASE_DIR/config_kharej.json"
+else
+  echo "Invalid selection."; exit 1
+fi
+
+sed -i -e "s#__IP_IRAN__#${IRAN_IP}#g" \
+       -e "s#__IP_KHAREJ__#${KHAREJ_IP}#g" \
+       -e "s#__PROTOCOL__#${PROTOCOL}#g" \
+       -e "s#__PORT__#${PORT}#g" "$CONF_FILE"
+
+printf '%s\n%s\n%s\n%s\n' "$IRAN_IP" "$KHAREJ_IP" "$PROTOCOL" "$PORT" > "$BASE_DIR/config.zex"
+chmod -R +x "$BASE_DIR"
+systemctl restart ztw ztwl
 
 # ───────────── Panel Script ─────────────
 cat >"$PANEL_PATH" <<'EOS'
@@ -133,7 +131,7 @@ while true; do
   printf "🚀  Status              : %b\n" "$ZTW_STATUS"
   printf "🛠  Binary              : $BASE_DIR/Waterwall\n"
   printf "🪪  Service Name        : ztw\n"
-  CLR 34 "└──────────────────────────┘\n"
+  CLR 34 "└─────────────────────────┘\n"
 
   WEB_PORT="N/A"; WEB_PASS="N/A"
   [[ -f "$WEB_CONFIG" ]] && readarray -t wcfg < "$WEB_CONFIG" && WEB_PORT="${wcfg[0]}" && WEB_PASS="${wcfg[2]}"
@@ -198,5 +196,4 @@ done
 EOS
 
 chmod +x "$PANEL_PATH"
-
 echo -e "\n✅ Installation complete. Run \e[33mzt\e[0m to open the panel."
