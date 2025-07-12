@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ───────────── General Info ─────────────
+# ───────────── Info ─────────────
 VERSION="V2.250706"
 BASE_DIR="$(dirname "$(realpath "$0")")"
 PANEL_PATH="/usr/local/bin/zt"
@@ -9,18 +9,19 @@ INSTALL_COPY="/root/zex-tunnel-install.sh"
 
 echo "===== Installing ZEX Tunnel $VERSION ====="
 
-# ───────────── Pre-checks & Cleanup ─────────────
 [[ $EUID -eq 0 ]] || { echo "❌ Run as root or with sudo."; exit 1; }
 
+# ───────────── Cleanup ─────────────
 systemctl disable --now ztw ztwl >/dev/null 2>&1 || true
 rm -f /etc/systemd/system/ztw.service /etc/systemd/system/ztwl.service
 rm -f "$PANEL_PATH"
 systemctl daemon-reload
 
+# ───────────── OS Check ─────────────
 UBUNTU_VERSION=$(grep '^VERSION_ID=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
 case "$UBUNTU_VERSION" in 20.*|21.*|22.*|23.*|24.*) ;; *) echo "❌ Unsupported Ubuntu $UBUNTU_VERSION"; exit 1;; esac
 
-# ───────────── Dependencies ─────────────
+# ───────────── Install Dependencies ─────────────
 apt update -y
 apt install -y python3 python3-pip curl
 pip3 install -U flask flask-socketio eventlet
@@ -36,23 +37,29 @@ reconfigure_tunnel() {
   echo "========================"
   printf 'Select server location:\n  [1] Iran\n  [2] Outside Iran\n> '
   read -r LOCATION_CHOICE
+
   printf 'IRAN IP/Domain: '
   read -r IRAN_IP
+  IRAN_IP="${IRAN_IP//\\}"
+
   printf 'Kharej IP/Domain: '
   read -r KHAREJ_IP
+  KHAREJ_IP="${KHAREJ_IP//\\}"
+
   echo 'Protocol Numbers Info: https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers'
   printf 'Protocol Number (Default 18): '
-  read -r PROTOCOL;  [[ -z "$PROTOCOL" ]] && PROTOCOL=18
+  read -r PROTOCOL; [[ -z "$PROTOCOL" ]] && PROTOCOL=18
+
   printf 'Port Number (Default 443): '
-  read -r PORT;      [[ -z "$PORT" ]] && PORT=443
+  read -r PORT; [[ -z "$PORT" ]] && PORT=443
 
   if [[ "$LOCATION_CHOICE" == "1" ]]; then
-    cp "$BASE_DIR/Iran/config_ir.json" "$BASE_DIR/"
-    cp "$BASE_DIR/Iran/core.json" "$BASE_DIR/"
+    cp "$BASE_DIR/Iran/config_ir.json" "$BASE_DIR/config_ir.json"
+    cp "$BASE_DIR/Iran/core.json" "$BASE_DIR/core.json"
     CONF_FILE="$BASE_DIR/config_ir.json"
   elif [[ "$LOCATION_CHOICE" == "2" ]]; then
-    cp "$BASE_DIR/Kharej/config_kharej.json" "$BASE_DIR/"
-    cp "$BASE_DIR/Kharej/core.json" "$BASE_DIR/"
+    cp "$BASE_DIR/Kharej/config_kharej.json" "$BASE_DIR/config_kharej.json"
+    cp "$BASE_DIR/Kharej/core.json" "$BASE_DIR/core.json"
     CONF_FILE="$BASE_DIR/config_kharej.json"
   else
     echo "❌ Invalid selection."; exit 1
@@ -64,13 +71,14 @@ reconfigure_tunnel() {
          -e "s#__PORT__#${PORT}#g" "$CONF_FILE"
 
   printf '%s\n%s\n%s\n%s\n' "$IRAN_IP" "$KHAREJ_IP" "$PROTOCOL" "$PORT" > "$BASE_DIR/config.zex"
-  echo "✅ Configuration completed."
+
+  echo "✅ Tunnel configured."
 }
 
 # ───────────── Initial Config ─────────────
 reconfigure_tunnel
 
-# ───────────── systemd Services ─────────────
+# ───────────── systemd Units ─────────────
 cat >/etc/systemd/system/ztw.service <<EOF
 [Unit]
 Description=ZEX Waterwall
@@ -105,7 +113,7 @@ systemctl daemon-reload
 systemctl enable ztw ztwl
 systemctl restart ztw ztwl
 
-# ───────────── Create Panel Script (zt) ─────────────
+# ───────────── Create Panel (zt) ─────────────
 cat >"$PANEL_PATH" <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
