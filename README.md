@@ -6,8 +6,6 @@
 </h1>
 
 <p align="center">
-  <a href="https://github.com/izex/zex-tunnel/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/izex/zex-tunnel?style=flat-square"></a>
-  <a href="https://github.com/izex/zex-tunnel/releases/latest"><img alt="Latest Release" src="https://img.shields.io/github/v/release/izex/zex-tunnel?style=flat-square"></a>
   <a href="https://github.com/izex/zex-tunnel/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/izex/zex-tunnel?style=flat-square"></a>
 </p>
 
