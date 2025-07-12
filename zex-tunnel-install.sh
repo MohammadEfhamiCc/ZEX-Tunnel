@@ -1,34 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ───────────── Info ─────────────
 VERSION="V2.250706"
 BASE_DIR="$(dirname "$(realpath "$0")")"
 PANEL_PATH="/usr/local/bin/zt"
 INSTALL_COPY="/root/zex-tunnel-install.sh"
 
-echo "===== Installing ZEX Tunnel $VERSION ====="
-
-[[ $EUID -eq 0 ]] || { echo "❌ Run as root or with sudo."; exit 1; }
-
-# ───────────── Cleanup ─────────────
-systemctl disable --now ztw ztwl >/dev/null 2>&1 || true
-rm -f /etc/systemd/system/ztw.service /etc/systemd/system/ztwl.service
-rm -f "$PANEL_PATH"
-systemctl daemon-reload
-
-# ───────────── OS Check ─────────────
-UBUNTU_VERSION=$(grep '^VERSION_ID=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
-case "$UBUNTU_VERSION" in 20.*|21.*|22.*|23.*|24.*) ;; *) echo "❌ Unsupported Ubuntu $UBUNTU_VERSION"; exit 1;; esac
-
-# ───────────── Install Dependencies ─────────────
-apt update -y
-apt install -y python3 python3-pip curl
-pip3 install -U flask flask-socketio eventlet
-
-# ───────────── Config Function ─────────────
 reconfigure_tunnel() {
-  echo -e "\n🧹 Cleaning old configs..."
+  echo -e "\n🧹 Removing old config files..."
   rm -f "$BASE_DIR/core.json" "$BASE_DIR/config_ir.json" "$BASE_DIR/config_kharej.json"
 
   clear
@@ -71,14 +50,25 @@ reconfigure_tunnel() {
          -e "s#__PORT__#${PORT}#g" "$CONF_FILE"
 
   printf '%s\n%s\n%s\n%s\n' "$IRAN_IP" "$KHAREJ_IP" "$PROTOCOL" "$PORT" > "$BASE_DIR/config.zex"
-
-  echo "✅ Tunnel configured."
+  echo "✅ Tunnel reconfigured successfully."
 }
 
-# ───────────── Initial Config ─────────────
-reconfigure_tunnel
+# ───────────── If Only Reconfigure Mode ─────────────
+if [[ "${1:-}" == "--reconfigure" ]]; then
+  reconfigure_tunnel
+  systemctl restart ztw ztwl
+  exit 0
+fi
 
-# ───────────── systemd Units ─────────────
+# ───────────── Full Installation ─────────────
+[[ $EUID -eq 0 ]] || { echo "❌ Run as root."; exit 1; }
+
+echo "🔧 Installing dependencies..."
+apt update -y
+apt install -y python3 python3-pip curl
+pip3 install -U flask flask-socketio eventlet
+
+# ───────────── systemd services ─────────────
 cat >/etc/systemd/system/ztw.service <<EOF
 [Unit]
 Description=ZEX Waterwall
@@ -111,9 +101,12 @@ EOF
 
 systemctl daemon-reload
 systemctl enable ztw ztwl
+
+# ───────────── Run Initial Config ─────────────
+reconfigure_tunnel
 systemctl restart ztw ztwl
 
-# ───────────── Create Panel (zt) ─────────────
+# ───────────── Create Panel Script ─────────────
 cat >"$PANEL_PATH" <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -179,7 +172,7 @@ while true; do
   done
   printf "\nSelect an option: "; read -r opt
   case "$opt" in
-    1) sudo bash /root/zex-tunnel-install.sh; sudo systemctl restart ztw ztwl; exit ;;
+    1) sudo bash /root/zex-tunnel-install.sh --reconfigure; exit ;;
     2)
        read -rp "New Web Port: " nport
        read -rp "New Web Password: " npass
