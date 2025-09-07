@@ -1,5 +1,5 @@
-# ZEX Tunnel V3
-WaterWall custom build + one-command installer with a clean TUI panel.
+# ZEX Tunnel V3(build 20250908)
+WaterWall custom build + one-command installer.
 
 <p align="center">
   <img alt="ZEX Tunnel" src="https://img.shields.io/badge/ZEX-Tunnel%20V3-blue?style=for-the-badge">
@@ -29,8 +29,6 @@ WaterWall custom build + one-command installer with a clean TUI panel.
 ## ✅ Requirements
 - Ubuntu **20.04** or **22.04** (with systemd)
 - `sudo` privileges
-- Internet access for Python dependencies
-
 ---
 
 ## 🚀 Install
@@ -94,7 +92,7 @@ sudo journalctl -u zextunnel -n 200 --no-pager
 
 ---
 
-## ♻️ Reconfigure / Update
+## ♻️ Reconfigure
 From panel (**Reconfigure**) or via script:
 ```bash
 sudo bash /root/ZEX-Tunnel/zex-tunnel-install.sh --reconfigure
