@@ -4,12 +4,15 @@ set -euo pipefail
 # =========================================================
 #                ZEX Tunnel V3 — Installer
 # =========================================================
+# Requirements (enforced below):
+# - Ubuntu 20.04.x or 22.04.x ONLY
+# - Must be run as root (sudo)
 
 VERSION="V3.250908"
 BASE_DIR="/root/ZEX-Tunnel"
-CFG_DIR="$BASE_DIR/config"              # Source config directory (read-only for us)
+CFG_DIR="$BASE_DIR/config"              # Source config directory (READ-ONLY; never modified)
 PANEL_PATH="/usr/local/bin/zt"
-INSTALL_SCRIPT="$BASE_DIR/zex-tunnel-install.sh"
+INSTALL_SCRIPT="$BASE_DIR/zex-tunnel-install.sh"   # Save this script at this path for panel option 10
 
 # Services
 SERVICE_TUN="zextunnel"
@@ -28,12 +31,12 @@ CONF_KH_MAIN="$BASE_DIR/config_kharej.json"
 CONF_ZEX_MAIN="$BASE_DIR/config.zex"     # 4 lines: IRAN_IP, KHAREJ_IP, PROTOCOL, PORTS (space-separated or empty for Kharej)
 WEB_ZEX_MAIN="$BASE_DIR/web.zex"         # optional 4 lines: port, reserved, pass, reserved
 
-# Files in CONFIG (immutable for us)
+# Files in CONFIG (immutable; we ONLY copy these)
 CORE_SRC="$CFG_DIR/core.json"
 CONF_IR_SRC="$CFG_DIR/config_ir.json"
 CONF_KH_SRC="$CFG_DIR/config_kharej.json"
 
-# Colors
+# -------------------- UI helpers --------------------
 CLR(){ printf "\e[%sm%b\e[0m" "$1" "$2"; }
 BANNER(){
   clear
@@ -42,7 +45,7 @@ BANNER(){
   CLR "36;1" "====================================================\n\n"
 }
 
-# --------- Guards ----------
+# -------------------- Guards --------------------
 if [[ $EUID -ne 0 ]]; then
   echo "This installer must be run as root. Please use: sudo bash $0"
   exit 1
@@ -54,21 +57,15 @@ else
   UBUNTU_VERSION=""
 fi
 case "$UBUNTU_VERSION" in
-  20.04|22.04|20.*|22.*) : ;;   # accept 20.x and 22.x; reject others (incl. 24.*)
+  20.04|22.04|20.*|22.*) : ;;   # accept 20.x and 22.x only
   *) echo "Unsupported Ubuntu $UBUNTU_VERSION (supported: 20.04–20.x, 22.04–22.x)"; exit 1;;
 esac
 
-# --------- Helpers ----------
-require_file() {
-  local f="$1"
-  [[ -f "$f" ]] || { echo "Missing required file: $f"; exit 1; }
-}
+# -------------------- FS helpers --------------------
+require_file() { local f="$1"; [[ -f "$f" ]] || { echo "Missing required file: $f"; exit 1; }; }
+ensure_layout(){ mkdir -p "$BASE_DIR" "$CFG_DIR"; }
 
-ensure_layout() {
-  mkdir -p "$BASE_DIR"
-  mkdir -p "$CFG_DIR"
-}
-
+# -------------------- Deps --------------------
 install_deps() {
   echo
   echo "Installing dependencies..."
@@ -77,24 +74,22 @@ install_deps() {
   pip3 install -U flask flask-socketio eventlet psutil
 }
 
+# -------------------- Validation --------------------
 validate_domain_ip() {
   local s="$1"
   [[ -n "$s" ]] || return 1
-  # basic sanity: no spaces, allowed chars, reasonable length
   [[ "$s" =~ ^[A-Za-z0-9._:-]+$ ]] || return 1
   [[ ${#s} -le 253 ]] || return 1
   return 0
 }
-
 validate_protocol() {
   local p="$1"
   [[ "$p" =~ ^[0-9]+$ ]] || return 1
   (( p>=0 && p<=255 )) || return 1
   return 0
 }
-
 validate_ports() {
-  # Input: space-separated ports; max 10
+  # Input: space-separated ports; MAX 10
   local ports_str="$1"
   [[ -n "$ports_str" ]] || return 1
   local -A seen=()
@@ -113,6 +108,7 @@ validate_ports() {
   return 0
 }
 
+# -------------------- Read helpers --------------------
 read_nonempty() {
   local prompt="$1" var
   while true; do
@@ -121,27 +117,34 @@ read_nonempty() {
     echo "Value cannot be empty."
   done
 }
+press_enter(){ read -r -p "Press Enter to continue... " _; }
 
-press_enter() { read -r -p "Press Enter to continue... " _; }
+# -------------------- Local IPs --------------------
+get_local_ipv4(){
+  ip -4 addr show scope global up 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -n1
+}
+get_local_ipv6(){
+  # exclude link-local fe80:: ; prefer global if present
+  ip -6 addr show scope global up 2>/dev/null | awk '/inet6/{print $2}' | cut -d/ -f1 | grep -v '^fe80:' | head -n1
+}
 
-# --------- JSON manipulations (via jq) ----------
+# -------------------- JSON manipulations (via jq) --------------------
 # Append inputN/outputN pairs for extra ports to MAIN IR json.
 add_extra_ports_to_ir_json() {
   local json_file="$CONF_IR_MAIN"
-  local ports_str="$1"    # space-separated
+  local ports_str="$1"    # space-separated ports (including first); we will skip the first
   local first=true
-  local extras=()
+  local extras=() p
   for p in $ports_str; do
     if $first; then first=false; continue; fi
     extras+=("$p")
   done
   [[ ${#extras[@]} -eq 0 ]] && return 0
 
-  # Build nodes for each extra port and append
-  # We compute next index based on existing pairs.
   local ports_json
   ports_json=$(printf '%s\n' "${extras[@]}" | jq -R . | jq -s .)
 
+  # Fixed jq program (no invalid ';' usage)
   local jq_prog='
     def mk_input(n; port):
       {name: ("input"+(n|tostring)), type:"TcpListener",
@@ -151,22 +154,22 @@ add_extra_ports_to_ir_json() {
       {name: ("output"+(n|tostring)), type:"TcpConnector",
        settings:{nodelay:true, address:"10.10.0.2", port:(port|tonumber)}};
 
-    # count existing input/output pairs to continue numbering
-    ( .nodes | [ .[] | select(.name|startswith("input")) ] | length ) as $in_count
-    | ( .nodes | [ .[] | select(.name|startswith("output")) ] | length ) as $out_count
-    | ($in_count; $out_count) as $base
-    | reduce ( $ports[] | tonumber ) as $p (
-        .; 
-        .nodes += [ mk_input(($base + 1); $p), mk_output(($base + 1); $p) ]
-        | $base = $base + 1
-      )'
+    # count existing input nodes to continue numbering (assumes output count matches)
+    ([ .nodes[]? | select(.name|startswith("input")) ] | length) as $base
+    | reduce ( $ports | to_entries[] ) as $e
+        ( .;
+          .nodes += [
+            mk_input(($base + $e.index + 1); $e.value),
+            mk_output(($base + $e.index + 1); $e.value)
+          ]
+        )'
 
   local tmpf; tmpf="$(mktemp)"
   jq --argjson ports "$ports_json" "$jq_prog" "$json_file" > "$tmpf"
   mv "$tmpf" "$json_file"
 }
 
-# Replace placeholders in MAIN configs
+# Replace placeholders in MAIN copies
 apply_placeholders_ir() {
   local iran_ip="$1" kh_ip="$2" proto="$3" first_port="$4"
   sed -i -e "s#__IP_IRAN__#${iran_ip}#g" \
@@ -174,7 +177,6 @@ apply_placeholders_ir() {
          -e "s#__PROTOCOL__#${proto}#g" \
          -e "s#__PORT__#${first_port}#g" "$CONF_IR_MAIN"
 }
-
 apply_placeholders_kh() {
   local iran_ip="$1" kh_ip="$2" proto="$3"
   sed -i -e "s#__IP_IRAN__#${iran_ip}#g" \
@@ -182,7 +184,7 @@ apply_placeholders_kh() {
          -e "s#__PROTOCOL__#${proto}#g" "$CONF_KH_MAIN"
 }
 
-# --------- Write systemd units ----------
+# -------------------- systemd units --------------------
 write_units() {
   cat >/etc/systemd/system/${SERVICE_TUN}.service <<EOF
 [Unit]
@@ -245,7 +247,7 @@ EOF
   systemctl enable ${SERVICE_TUN} ${SERVICE_WEB} ${SERVICE_API} >/dev/null 2>&1 || true
 }
 
-# --------- Panel (zt) ----------
+# -------------------- Panel (zt) --------------------
 write_panel() {
   cat >"$PANEL_PATH" <<'EOS'
 #!/usr/bin/env bash
@@ -257,7 +259,7 @@ PANEL_NAME="ZEX Tunnel V3 — Panel"
 
 SERVICE_TUN="zextunnel"
 SERVICE_WEB="zexweb"
-# zexapi is intentionally hidden from panel per spec
+# zexapi is intentionally hidden from panel
 
 CONFIG_FILE="$BASE_DIR/config.zex"    # IRAN_IP, KHAREJ_IP, PROTOCOL, PORTS
 WEB_CONFIG="$BASE_DIR/web.zex"        # port, -, pass, -
@@ -277,11 +279,9 @@ get_location() {
     local cfg
     cfg=$(jq -r '.configs[0]' "$CORE_MAIN" 2>/dev/null || echo "")
     if [[ "$cfg" == "config_ir.json" ]]; then
-      echo "Iran"
-      return
+      echo "Iran"; return
     elif [[ "$cfg" == "config_kharej.json" ]]; then
-      echo "Kharej"
-      return
+      echo "Kharej"; return
     fi
   fi
   echo "Unknown"
@@ -375,7 +375,7 @@ main_loop() {
       4) journalctl -u "$SERVICE_TUN" -n 200 --no-pager | ${PAGER:-less} ;;
       5) pkill -f "$BASE_DIR/Waterwall" || true ;;
       6) systemctl start "$SERVICE_WEB" ;;
-      7) systemctl stop "$SERVICE_WEB" ;;
+      7) systemctl stop  "$SERVICE_WEB" ;;
       8) systemctl restart "$SERVICE_WEB" ;;
       9) journalctl -u "$SERVICE_WEB" -n 200 --no-pager | ${PAGER:-less} ;;
       10) sudo bash "$BASE_DIR/zex-tunnel-install.sh" --reconfigure; read -r -p "Press Enter..." _ ;;
@@ -422,13 +422,20 @@ main_loop() {
 
 main_loop
 EOS
-
   chmod +x "$PANEL_PATH"
 }
 
-# --------- Setup Wizard ----------
+# -------------------- Setup Wizard --------------------
 run_wizard() {
   BANNER
+
+  # Show local IPs before location prompt
+  local IPV4 IPV6
+  IPV4="$(get_local_ipv4)"; [[ -z "${IPV4:-}" ]] && IPV4="N/A"
+  IPV6="$(get_local_ipv6)"; [[ -z "${IPV6:-}" ]] && IPV6="N/A"
+  echo "IP V4: $IPV4"
+  echo "IP V6: $IPV6"
+  echo "---------------------------------------"
   echo "Mode: choose server location"
   echo "  [1] Iran"
   echo "  [2] Kharej"
@@ -470,7 +477,6 @@ run_wizard() {
     validate_ports "$PORTS" || { echo "Invalid port list (1-10 ports, unique, 1-65535)."; exit 1; }
   fi
 
-  # Review & confirm
   echo
   echo "----------------------------------------------------"
   echo "Review & Confirm"
@@ -486,16 +492,15 @@ run_wizard() {
   read -r -p "Proceed? (Y/n): " go
   [[ -z "${go:-}" || "${go,,}" == "y" ]] || { echo "Cancelled."; exit 1; }
 
-  # Save a simple summary file (for panel) — Recreate each time
+  # Recreate config.zex every time (install or reconfigure)
   printf '%s\n%s\n%s\n%s\n' "$IRAN_IP" "$KHAREJ_IP" "$PROTOCOL" "${PORTS:-}" > "$CONF_ZEX_MAIN"
 
-  # Apply configs (copy from config/ to main, then modify MAIN copies)
+  # Copy from config/ into main, then modify MAIN copies only
   if [[ "$LOCATION_CHOICE" == "1" ]]; then
     # Iran
     cp -f "$CORE_SRC" "$CORE_MAIN"
     sed -i -e 's#"__CONFIG_FILE__"#"config_ir.json"#g' "$CORE_MAIN"
     cp -f "$CONF_IR_SRC" "$CONF_IR_MAIN"
-
     first_port="${PORTS%% *}"
     apply_placeholders_ir "$IRAN_IP" "$KHAREJ_IP" "$PROTOCOL" "$first_port"
     add_extra_ports_to_ir_json "$PORTS"
@@ -504,12 +509,11 @@ run_wizard() {
     cp -f "$CORE_SRC" "$CORE_MAIN"
     sed -i -e 's#"__CONFIG_FILE__"#"config_kharej.json"#g' "$CORE_MAIN"
     cp -f "$CONF_KH_SRC" "$CONF_KH_MAIN"
-
     apply_placeholders_kh "$IRAN_IP" "$KHAREJ_IP" "$PROTOCOL"
   fi
 }
 
-# --------- Reconfigure (disable/re-enable services around changes) ----------
+# -------------------- Reconfigure flow --------------------
 reconfigure_flow() {
   echo "Temporarily disabling services..."
   systemctl disable --now ${SERVICE_TUN} ${SERVICE_WEB} >/dev/null 2>&1 || true
@@ -524,7 +528,7 @@ reconfigure_flow() {
   systemctl restart ${SERVICE_TUN} ${SERVICE_WEB} || true
 }
 
-# --------- Write units + panel, run wizard, enable/start ----------
+# -------------------- Entry --------------------
 main() {
   ensure_layout
   require_file "$CORE_SRC"
@@ -537,28 +541,24 @@ main() {
   fi
 
   install_deps
-
-  # Write/enable services
   write_units
-
-  # Create panel
   write_panel
 
-  # Warn if expected binaries missing (do not abort)
+  # Warn if expected binaries are missing (do not abort)
   for f in "$BIN_TUN" "$BIN_WEB" "$BIN_API"; do
     [[ -x "$f" || -f "$f" ]] || echo "Warning: Expected file not found yet: $f"
   done
 
-  # First-time wizard
+  # First-time setup
   run_wizard
 
-  # Permissions (only executables)
+  # Permissions for binaries (best-effort)
   chmod +x "$BIN_TUN" "$BIN_API" 2>/dev/null || true
 
-  # Start / restart services
+  # Start / enable services
   systemctl restart ${SERVICE_TUN} ${SERVICE_WEB} || true
-  systemctl enable ${SERVICE_TUN} ${SERVICE_WEB} ${SERVICE_API} >/dev/null 2>&1 || true
-  systemctl start ${SERVICE_API} || true
+  systemctl enable  ${SERVICE_TUN} ${SERVICE_WEB} ${SERVICE_API} >/dev/null 2>&1 || true
+  systemctl start   ${SERVICE_API} || true
 
   echo
   echo "Installation complete. Run 'zt' to open the panel."
