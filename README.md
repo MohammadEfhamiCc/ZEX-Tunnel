@@ -35,7 +35,7 @@ WaterWall custom build + one-command installer.
 ```bash
 git clone https://github.com/izex/ZEX-Tunnel.git
 cd ZEX-Tunnel
-chmod +x zex-tunnel-install.sh
+chmod +x *
 sudo bash zex-tunnel-install.sh
 ```
 
